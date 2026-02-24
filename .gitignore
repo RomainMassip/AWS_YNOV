@@ -1,3 +1,4 @@
 node_modules/
-05-projet-capstone-one/deploy.log
-05-projet-capstone-one/destroy.log
+ships-capstone/node_modules/
+ships-capstone/deploy.log
+ships-capstone/destroy.log

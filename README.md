@@ -1,21 +1,35 @@
 # Projet final — API S3 pour photos de navires
 
+## Sommaire
+- [Résumé](#résumé)
+- [Schéma d'architecture](#schéma-darchitecture)
+- [Etat du projet](#etat-du-projet)
+- [Démarrage rapide](#démarrage-rapide)
+- [Prérequis](#prérequis)
+- [Commandes principales](#commandes-principales)
+- [Fichiers principaux](#fichiers-principaux)
+- [Fonctions et commandes organisées par service](#fonctions-et-commandes-organisées-par-service)
+- [Logs](#logs)
+- [Fil de l'eau](#fil-de-leau)
+
 ## Résumé
 - Ce projet crée un bucket S3, y charge des images (ships), et expose une API REST (API Gateway) permettant :
 	- `GET /ships` → lister les objets du bucket
 	- `GET /ships/photo/{key}` → récupérer l'image correspondant à `key`
 - Un script de destruction vide et supprime les buckets créés par le projet.
 
-## Schéma d'architecture (Mermaid)
-```mermaid
-flowchart LR
-	A[deploy-project.ts] -->|createBucket / uploadFile| S3[S3 Bucket (s3-lab05-sdk-...)]
-	S3 -->|objects| B[Objects: fisher.jpg, tanker.jpg]
-	A -->|create API & methods| APIGW[API Gateway (s3-content-api-...)]
-	APIGW -->|GET /ships -> ListObjects| S3
-	APIGW -->|GET /ships/photo/{key} -> GetObject| S3
-	D[destroy-project.ts] -->|listBuckets / emptyBucket / deleteBucket| S3
-	note right of APIGW: API Key + Usage Plan\nBinary media types: image/*
+## Schéma d'architecture
+![Architecture cible](ships-capstone/diagrams/target-architecture.png)
+
+## Etat du projet
+- S3 et DynamoDB: OK
+- API Gateway: en cours
+
+## Démarrage rapide
+```bash
+cd ships-capstone
+npm install
+npx ts-node src/deploy-project.ts
 ```
 
 ## Prérequis
@@ -26,12 +40,18 @@ flowchart LR
 ## Commandes principales
 - Déployer (crée bucket, charge fichiers, crée API) :
 ```bash
+cd ships-capstone
 npx ts-node src/deploy-project.ts
 ```
 - Détruire (vide et supprime les buckets du projet) :
 ```bash
+cd ships-capstone
 npx ts-node src/destroy-project.ts
 ```
+
+## Notes
+- Le bucket est nommé automatiquement et son nom est écrit dans `deploy.log`.
+- Le déploiement est idempotent pour la table DynamoDB (relançable sans erreur).
 
 ## Fichiers principaux
 - `src/deploy-project.ts` — script de déploiement (S3 + DynamoDB)
@@ -43,17 +63,28 @@ npx ts-node src/destroy-project.ts
 ## Fonctions et commandes organisées par service
 
 ### S3
-- Fonctions définies dans les scripts :
-	- `createBucket(bucketName: string): Promise<void>` — crée le bucket S3 qui stockera les images (utilise `CreateBucketCommand`).
-	- `uploadFile(bucketName: string, key: string, filePath: string): Promise<void>` — lit un fichier local et l'insère dans S3 via `PutObjectCommand` (définit `ContentType: 'image/jpeg'`).
-	- `emptyBucket(bucketName: string): Promise<void>` — (dans `destroy-project.ts`) liste les objets (`ListObjectsV2Command`) et supprime chacun (`DeleteObjectCommand`).
-	- `deleteBucket(bucketName: string): Promise<void>` — supprime le bucket vide via `DeleteBucketCommand`.
-	- `deleteAllProjectBuckets(): Promise<void>` — (dans `destroy-project.ts`) liste tous les buckets (`ListBucketsCommand`), filtre ceux créés par le projet puis vide et supprime chacun.
+- Objectif: créer un bucket, uploader les images, puis nettoyer le bucket en fin de projet.
+- Fonctions clés: `createBucket`, `uploadFile`, `emptyBucket`, `deleteBucket`, `deleteAllProjectBuckets`.
+- SDK: `@aws-sdk/client-s3`.
 
-	Pourquoi : ces opérations couvrent le cycle de vie des objets S3 nécessaires au labo — création, insertion, lecture/liste et suppression.
+#### Commandes AWS CLI
+```bash
+# Créer un bucket
+aws s3api create-bucket --bucket my-ships-bucket --region eu-west-1 --create-bucket-configuration LocationConstraint=eu-west-1 --profile aws-labs
 
-	Imports (SDK v3):
-	- `@aws-sdk/client-s3`: `S3Client`, `CreateBucketCommand`, `PutObjectCommand`, `ListObjectsV2Command`, `DeleteObjectCommand`, `DeleteBucketCommand`, `ListBucketsCommand`
+# Uploader des fichiers
+aws s3 cp ./ships-capstone/assets/fisher.jpg s3://my-ships-bucket/fisher.jpg --profile aws-labs
+aws s3 cp ./ships-capstone/assets/tanker.jpg s3://my-ships-bucket/tanker.jpg --profile aws-labs
+
+# Lister les fichiers du bucket
+aws s3 ls s3://my-ships-bucket --profile aws-labs
+
+# Vider le bucket (supprimer tous les objets)
+aws s3 rm s3://my-ships-bucket --recursive --profile aws-labs
+
+# Supprimer le bucket
+aws s3api delete-bucket --bucket my-ships-bucket --region eu-west-1 --profile aws-labs
+```
 
 ### DynamoDB
 
