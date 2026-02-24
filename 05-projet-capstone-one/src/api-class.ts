@@ -7,7 +7,9 @@ import {
   PutIntegrationCommand,
   PutMethodResponseCommand,
   PutIntegrationResponseCommand,
-  CreateDeploymentCommand
+  PutGatewayResponseCommand,
+  CreateDeploymentCommand,
+  UpdateRestApiCommand
 } from "@aws-sdk/client-api-gateway";
 import {
   IAMClient,
@@ -28,11 +30,14 @@ const REGION = "eu-west-1";
 const API_NAME = "s3-content-api-boat";
 const STAGE_NAME = "dev";
 const DESCRIPTION = "API Gateway for Boat Project";
-const DYNAMODB_TABLE = "boats";
+const DYNAMODB_TABLE = "ships";
 const S3_BUCKET = "boat-images";
 const IAM_ROLE_NAME = "apigateway-dynamodb-s3-role";
 const DYNAMODB_ROLE_NAME = "APIGatewayDynamoDBServiceRole";
 const S3_ROLE_NAME = "APIGatewayS3ServiceRole";
+const CORS_ALLOW_ORIGIN = "*";
+const CORS_ALLOW_HEADERS = "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-api-key";
+const CORS_ALLOW_METHODS = "GET,OPTIONS";
 
 // Allow providing existing role ARNs via environment variables
 const ENV_DYNAMODB_ROLE_ARN = process.env.APIGATEWAY_DYNAMODB_ROLE_ARN || process.env.APIGATEWAY_DYNAMODB_ROLE || process.env.APIGATEWAY_DYNAMODBROLE_ARN || process.env.APIGATEWAY_DYNAMODB_ROLE_ARN;
@@ -213,7 +218,10 @@ export async function deployApi(logFile = './deploy.log') {
         restApiId,
         resourceId: shipsResourceId,
         httpMethod: "GET",
-        statusCode: "200"
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
       })
     );
 
@@ -223,6 +231,9 @@ export async function deployApi(logFile = './deploy.log') {
         resourceId: shipsResourceId,
         httpMethod: "GET",
         statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        },
         responseTemplates: {
           "application/json": "$input.json('$')"
         }
@@ -230,6 +241,57 @@ export async function deployApi(logFile = './deploy.log') {
     );
 
     addLog('✅ GET /ships configuré (DynamoDB Scan)', logFile);
+
+    await apiGateway.send(
+      new PutMethodCommand({
+        restApiId,
+        resourceId: shipsResourceId,
+        httpMethod: "OPTIONS",
+        authorizationType: "NONE"
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationCommand({
+        restApiId,
+        resourceId: shipsResourceId,
+        httpMethod: "OPTIONS",
+        type: "MOCK",
+        requestTemplates: {
+          "application/json": "{\"statusCode\": 200}"
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutMethodResponseCommand({
+        restApiId,
+        resourceId: shipsResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": true,
+          "method.response.header.Access-Control-Allow-Methods": true,
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationResponseCommand({
+        restApiId,
+        resourceId: shipsResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": `'${CORS_ALLOW_HEADERS}'`,
+          "method.response.header.Access-Control-Allow-Methods": `'${CORS_ALLOW_METHODS}'`,
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        }
+      })
+    );
+
+    addLog('✅ OPTIONS /ships configuré (CORS preflight)', logFile);
 
     const photoResource = await apiGateway.send(
       new CreateResourceCommand({
@@ -284,7 +346,10 @@ export async function deployApi(logFile = './deploy.log') {
         restApiId,
         resourceId: photoKeyResourceId,
         httpMethod: "GET",
-        statusCode: "200"
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
       })
     );
 
@@ -294,6 +359,9 @@ export async function deployApi(logFile = './deploy.log') {
         resourceId: photoKeyResourceId,
         httpMethod: "GET",
         statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        },
         responseTemplates: {
           "application/json": "$input.json('$')"
         }
@@ -301,6 +369,60 @@ export async function deployApi(logFile = './deploy.log') {
     );
 
     addLog('✅ GET /ships/photo/{key} configuré (S3)', logFile);
+
+    await apiGateway.send(
+      new PutMethodCommand({
+        restApiId,
+        resourceId: photoKeyResourceId,
+        httpMethod: "OPTIONS",
+        authorizationType: "NONE",
+        requestParameters: {
+          "method.request.path.key": true
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationCommand({
+        restApiId,
+        resourceId: photoKeyResourceId,
+        httpMethod: "OPTIONS",
+        type: "MOCK",
+        requestTemplates: {
+          "application/json": "{\"statusCode\": 200}"
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutMethodResponseCommand({
+        restApiId,
+        resourceId: photoKeyResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": true,
+          "method.response.header.Access-Control-Allow-Methods": true,
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationResponseCommand({
+        restApiId,
+        resourceId: photoKeyResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": `'${CORS_ALLOW_HEADERS}'`,
+          "method.response.header.Access-Control-Allow-Methods": `'${CORS_ALLOW_METHODS}'`,
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        }
+      })
+    );
+
+    addLog('✅ OPTIONS /ships/photo/{key} configuré (CORS preflight)', logFile);
 
     const profileResource = await apiGateway.send(
       new CreateResourceCommand({
@@ -362,7 +484,10 @@ export async function deployApi(logFile = './deploy.log') {
         restApiId,
         resourceId: profileKeyResourceId,
         httpMethod: "GET",
-        statusCode: "200"
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
       })
     );
 
@@ -372,6 +497,9 @@ export async function deployApi(logFile = './deploy.log') {
         resourceId: profileKeyResourceId,
         httpMethod: "GET",
         statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        },
         responseTemplates: {
           "application/json": "$input.json('$.Item')"
         }
@@ -379,6 +507,108 @@ export async function deployApi(logFile = './deploy.log') {
     );
 
     addLog('✅ GET /ships/profile/{key} configuré (DynamoDB GetItem)', logFile);
+
+    await apiGateway.send(
+      new PutMethodCommand({
+        restApiId,
+        resourceId: profileKeyResourceId,
+        httpMethod: "OPTIONS",
+        authorizationType: "NONE",
+        requestParameters: {
+          "method.request.path.key": true
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationCommand({
+        restApiId,
+        resourceId: profileKeyResourceId,
+        httpMethod: "OPTIONS",
+        type: "MOCK",
+        requestTemplates: {
+          "application/json": "{\"statusCode\": 200}"
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutMethodResponseCommand({
+        restApiId,
+        resourceId: profileKeyResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": true,
+          "method.response.header.Access-Control-Allow-Methods": true,
+          "method.response.header.Access-Control-Allow-Origin": true
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutIntegrationResponseCommand({
+        restApiId,
+        resourceId: profileKeyResourceId,
+        httpMethod: "OPTIONS",
+        statusCode: "200",
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Headers": `'${CORS_ALLOW_HEADERS}'`,
+          "method.response.header.Access-Control-Allow-Methods": `'${CORS_ALLOW_METHODS}'`,
+          "method.response.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`
+        }
+      })
+    );
+
+    addLog('✅ OPTIONS /ships/profile/{key} configuré (CORS preflight)', logFile);
+
+    await apiGateway.send(
+      new PutGatewayResponseCommand({
+        restApiId,
+        responseType: "DEFAULT_4XX",
+        responseParameters: {
+          "gatewayresponse.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`,
+          "gatewayresponse.header.Access-Control-Allow-Headers": `'${CORS_ALLOW_HEADERS}'`,
+          "gatewayresponse.header.Access-Control-Allow-Methods": `'${CORS_ALLOW_METHODS}'`
+        }
+      })
+    );
+
+    await apiGateway.send(
+      new PutGatewayResponseCommand({
+        restApiId,
+        responseType: "DEFAULT_5XX",
+        responseParameters: {
+          "gatewayresponse.header.Access-Control-Allow-Origin": `'${CORS_ALLOW_ORIGIN}'`,
+          "gatewayresponse.header.Access-Control-Allow-Headers": `'${CORS_ALLOW_HEADERS}'`,
+          "gatewayresponse.header.Access-Control-Allow-Methods": `'${CORS_ALLOW_METHODS}'`
+        }
+      })
+    );
+
+    addLog('✅ CORS global configuré pour réponses API Gateway (4XX/5XX)', logFile);
+
+    // Configure binary media types for images
+    await apiGateway.send(
+      new UpdateRestApiCommand({
+        restApiId,
+        patchOperations: [
+          {
+            op: "add",
+            path: "/binaryMediaTypes/image~1*"
+          },
+          {
+            op: "add",
+            path: "/binaryMediaTypes/image~1jpeg"
+          },
+          {
+            op: "add",
+            path: "/binaryMediaTypes/image~1png"
+          }
+        ]
+      })
+    );
+    console.log("✅ Binary media types configurés");
 
     await apiGateway.send(
       new CreateDeploymentCommand({

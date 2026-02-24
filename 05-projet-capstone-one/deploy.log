@@ -1,6 +1,38 @@
-=== Deployment Log - 2026-02-24T12:39:22.929Z ===
-[2026-02-24T12:39:22.932Z] 🚀 Starting Project Deployment...
-[2026-02-24T12:39:25.534Z] ✅ Bucket "s3-lab05-sdk-1771936762933" created successfully
-[2026-02-24T12:39:25.900Z] ✅ File "fisher.jpg" uploaded successfully to bucket "s3-lab05-sdk-1771936762933"
-[2026-02-24T12:39:26.213Z] ✅ File "tanker.jpg" uploaded successfully to bucket "s3-lab05-sdk-1771936762933"
-[2026-02-24T12:39:27.181Z] ✅ Project deployed successfully...
+=== Deployment Log - 2026-02-24T15:36:26.307Z ===
+[2026-02-24T15:36:26.339Z] 🚀 Starting Project Deployment...
+[2026-02-24T15:36:28.431Z] ✅ Bucket "s3-lab05-sdk-1771947386343" created successfully
+[2026-02-24T15:36:28.678Z] ✅ File "fisher.jpg" uploaded successfully to bucket "s3-lab05-sdk-1771947386343"
+[2026-02-24T15:36:28.757Z] ✅ File "tanker.jpg" uploaded successfully to bucket "s3-lab05-sdk-1771947386343"
+[2026-02-24T15:36:49.643Z] 📋 Configuration IAM...
+[2026-02-24T15:36:52.135Z] ✅ Rôle IAM existant utilisé : arn:aws:iam::571182111631:role/APIGatewayDynamoDBServiceRole
+[2026-02-24T15:36:52.269Z] ⚠️ Impossible d'attacher la policy au rôle APIGatewayDynamoDBServiceRole: AccessDenied: User: arn:aws:sts::571182111631:assumed-role/AWSReservedSSO_StudentAccess_dbb2eb46de1f7035/mathis.lenoir@ynov.com is not authorized to perform: iam:PutRolePolicy on resource: role APIGatewayDynamoDBServiceRole because no identity-based policy allows the iam:PutRolePolicy action.
+[2026-02-24T15:36:52.341Z] 👉 Votre session n'a pas la permission iam:PutRolePolicy. Demandez à un administrateur d'attacher la policy suivante au rôle APIGatewayDynamoDBServiceRole (ou créez le rôle avec ces permissions), puis relancez le déploiement.
+[2026-02-24T15:36:52.343Z] Policy JSON: {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["dynamodb:Scan","dynamodb:GetItem"],"Resource":"arn:aws:dynamodb:eu-west-1:571182111631:table/ships"}]}
+[2026-02-24T15:36:54.480Z] ✅ Rôle IAM existant utilisé : arn:aws:iam::571182111631:role/APIGatewayS3ServiceRole
+[2026-02-24T15:36:54.619Z] ⚠️ Impossible d'attacher la policy au rôle APIGatewayS3ServiceRole: AccessDenied: User: arn:aws:sts::571182111631:assumed-role/AWSReservedSSO_StudentAccess_dbb2eb46de1f7035/mathis.lenoir@ynov.com is not authorized to perform: iam:PutRolePolicy on resource: role APIGatewayS3ServiceRole because no identity-based policy allows the iam:PutRolePolicy action.
+[2026-02-24T15:36:54.623Z] 👉 Votre session n'a pas la permission iam:PutRolePolicy. Demandez à un administrateur d'attacher la policy suivante au rôle APIGatewayS3ServiceRole (ou créez le rôle avec ces permissions), puis relancez le déploiement.
+[2026-02-24T15:36:54.626Z] Policy JSON: {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject"],"Resource":"arn:aws:s3:::boat-images/*"}]}
+[2026-02-24T15:36:57.692Z] ✅ API Gateway REST créée : mut786hul1
+[2026-02-24T15:36:57.883Z] ✅ Ressource /ships créée
+[2026-02-24T15:36:58.288Z] ✅ GET /ships configuré (DynamoDB Scan)
+[2026-02-24T15:36:58.650Z] ✅ OPTIONS /ships configuré (CORS preflight)
+[2026-02-24T15:36:58.844Z] ✅ Ressource /ships/photo/{key} créée
+[2026-02-24T15:36:59.190Z] ✅ GET /ships/photo/{key} configuré (S3)
+[2026-02-24T15:36:59.529Z] ✅ OPTIONS /ships/photo/{key} configuré (CORS preflight)
+[2026-02-24T15:36:59.735Z] ✅ Ressource /ships/profile/{key} créée
+[2026-02-24T15:37:00.120Z] ✅ GET /ships/profile/{key} configuré (DynamoDB GetItem)
+[2026-02-24T15:37:00.454Z] ✅ OPTIONS /ships/profile/{key} configuré (CORS preflight)
+[2026-02-24T15:37:00.663Z] ✅ CORS global configuré pour réponses API Gateway (4XX/5XX)
+[2026-02-24T15:37:01.041Z] 
+🚀 API Gateway déployée avec succès !
+[2026-02-24T15:37:01.045Z] 
+📋 Endpoints disponibles :
+[2026-02-24T15:37:01.047Z]   • GET https://mut786hul1.execute-api.eu-west-1.amazonaws.com/dev/ships
+[2026-02-24T15:37:01.049Z]   • GET https://mut786hul1.execute-api.eu-west-1.amazonaws.com/dev/ships/photo/{key}
+[2026-02-24T15:37:01.051Z]   • GET https://mut786hul1.execute-api.eu-west-1.amazonaws.com/dev/ships/profile/{key}
+[2026-02-24T15:37:01.053Z] 
+📊 Configuration :
+[2026-02-24T15:37:01.055Z]   • DynamoDB Table: ships
+[2026-02-24T15:37:01.057Z]   • S3 Bucket: boat-images
+[2026-02-24T15:37:01.059Z]   • Rôle IAM: apigateway-dynamodb-s3-role
+[2026-02-24T15:37:01.061Z] ✅ Project deployed successfully...
