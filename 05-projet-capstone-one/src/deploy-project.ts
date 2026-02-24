@@ -1,3 +1,15 @@
+import * as dynamodb from './dynamodb-operations';
+import {
+  S3Client,
+  CreateBucketCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
+import { readFileSync, writeFileSync, appendFileSync } from 'fs';
+
+// Configuration du client S3
+const s3Client = new S3Client({
+  region: 'eu-west-1', // Région par défaut
+});
 import { addLog, initializeLog } from './log-function';
 import { createBucket, uploadFile } from './s3-function';
 
@@ -26,6 +38,8 @@ async function deploy() {
     addLog(`✅ File "${fileName2}" uploaded successfully to bucket "${bucketName}"`, LOG_FILE);
 
     // Create DynamoDB and Insert Items
+    await dynamodb.createShipsTable();
+    await dynamodb.insertShips();
 
     // Create API Gateway and Configure S3 / DynamoDB Integration
 
