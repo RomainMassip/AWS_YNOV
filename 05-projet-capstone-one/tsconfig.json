@@ -11,7 +11,7 @@
   },
   "include": [
     "src/**/*"
-  ],
+, "src/log-function.ts"  ],
   "exclude": [
     "node_modules",
     "dist",

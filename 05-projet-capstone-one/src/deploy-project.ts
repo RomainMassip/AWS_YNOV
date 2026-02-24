@@ -10,9 +10,9 @@ import { readFileSync, writeFileSync, appendFileSync } from 'fs';
 const s3Client = new S3Client({
   region: 'eu-west-1', // Région par défaut
 });
-import { addLog, initializeLog } from './log-function';
-import { createBucket, uploadFile } from './s3-function';
 
+import { addLog, initializeLog } from '../log-function';
+import { createBucket, uploadFile } from './s3-function';
 // Log file path
 const LOG_FILE = './deploy.log';
 

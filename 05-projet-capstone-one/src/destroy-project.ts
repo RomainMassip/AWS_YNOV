@@ -1,6 +1,5 @@
 //import
-import { addLog, initializeLog } from './log-function';
-import { deleteAllProjectBuckets } from './s3-function';
+import { addLog, initializeLog } from '../log-function';
 import {
   S3Client,
   ListBucketsCommand,
@@ -20,25 +19,6 @@ const s3Client = new S3Client({
 const LOG_FILE = './destroy.log';
 
 /**
- * Ajouter un message au fichier log
- */
-function addLog(message: string): void {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
-  appendFileSync(LOG_FILE, logMessage);
-  //console.log(message);
-}
-
-/**
- * Initialiser le fichier log
- */
-function initializeLog(): void {
-  const timestamp = new Date().toISOString();
-  writeFileSync(LOG_FILE, `=== Destruction Log - ${timestamp} ===\n`);
-  addLog(`Fichier de log initialisé: ${LOG_FILE}`);
-}
-
-/**
  * Vider un bucket S3 en supprimant tous les objets
  */
 async function emptyBucket(bucketName: string): Promise<void> {
@@ -50,7 +30,7 @@ async function emptyBucket(bucketName: string): Promise<void> {
     const listResponse = await s3Client.send(listCommand);
 
     if (listResponse.Contents && listResponse.Contents.length > 0) {
-      addLog(`Suppression de ${listResponse.Contents.length} objet(s)...`);
+      addLog(`Suppression de ${listResponse.Contents.length} objet(s)...`, LOG_FILE);
 
       for (const obj of listResponse.Contents) {
         if (obj.Key) {
@@ -61,12 +41,12 @@ async function emptyBucket(bucketName: string): Promise<void> {
           await s3Client.send(deleteCommand);
         }
       }
-      addLog(`Tous les objets du bucket "${bucketName}" ont été supprimés`);
+      addLog(`Tous les objets du bucket "${bucketName}" ont été supprimés`, LOG_FILE);
     } else {
-      addLog(`Le bucket "${bucketName}" est déjà vide`);
+      addLog(`Le bucket "${bucketName}" est déjà vide`, LOG_FILE);
     }
   } catch (error) {
-    addLog(`❌ Erreur lors du vidage du bucket: ${error}`);
+    addLog(`❌ Erreur lors du vidage du bucket: ${error}`, LOG_FILE);
     throw error;
   }
 }
@@ -81,9 +61,9 @@ async function deleteBucket(bucketName: string): Promise<void> {
     });
 
     await s3Client.send(deleteCommand);
-    addLog(`✅ Bucket "${bucketName}" supprimé avec succès`);
+    addLog(`✅ Bucket "${bucketName}" supprimé avec succès`, LOG_FILE);
   } catch (error) {
-    addLog(`❌ Erreur lors de la suppression du bucket: ${error}`);
+    addLog(`❌ Erreur lors de la suppression du bucket: ${error}`, LOG_FILE);
     throw error;
   }
 }
@@ -101,19 +81,19 @@ async function deleteAllProjectBuckets(): Promise<void> {
       .map(bucket => bucket.Name as string);
 
     if (projectBuckets.length === 0) {
-      addLog('📋 Aucun bucket du projet trouvé');
+      addLog('📋 Aucun bucket du projet trouvé', LOG_FILE);
       return;
     }
 
-    addLog(`🪣 ${projectBuckets.length} bucket(s) trouvé(s)`);
+    addLog(`🪣 ${projectBuckets.length} bucket(s) trouvé(s)`, LOG_FILE);
 
     for (const bucketName of projectBuckets) {
-      addLog(`\n🔄 Traitement de "${bucketName}"...`);
+      addLog(`\n🔄 Traitement de "${bucketName}"...`, LOG_FILE);
       await emptyBucket(bucketName);
       await deleteBucket(bucketName);
     }
   } catch (error) {
-    addLog(`❌ Erreur lors de la suppression des buckets: ${error}`);
+    addLog(`❌ Erreur lors de la suppression des buckets: ${error}`, LOG_FILE);
     throw error;
   }
 }
