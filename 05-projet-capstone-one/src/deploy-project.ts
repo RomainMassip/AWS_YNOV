@@ -1,4 +1,5 @@
 import * as dynamodb from './dynamodb-operations';
+import { deployApi } from './api-class';
 
 import { addLog, initializeLog } from './log-function';
 import { createBucket, uploadFile } from './s3-function';
@@ -29,6 +30,8 @@ async function deploy() {
     // Create DynamoDB and Insert Items
     await dynamodb.createShipsTable();
     await dynamodb.insertShips();
+    // Create API Gateway and Configure S3 / DynamoDB Integration
+    await deployApi(LOG_FILE);
 
     // Create API Gateway and Configure S3 / DynamoDB Integration
 

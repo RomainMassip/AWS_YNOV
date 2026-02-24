@@ -19,6 +19,7 @@ import {
   STSClient,
   GetCallerIdentityCommand
 } from "@aws-sdk/client-sts";
+import { addLog } from './log-function';
 
 /**
  * Configuration
@@ -30,6 +31,12 @@ const DESCRIPTION = "API Gateway for Boat Project";
 const DYNAMODB_TABLE = "boats";
 const S3_BUCKET = "boat-images";
 const IAM_ROLE_NAME = "apigateway-dynamodb-s3-role";
+const DYNAMODB_ROLE_NAME = "APIGatewayDynamoDBServiceRole";
+const S3_ROLE_NAME = "APIGatewayS3ServiceRole";
+
+// Allow providing existing role ARNs via environment variables
+const ENV_DYNAMODB_ROLE_ARN = process.env.APIGATEWAY_DYNAMODB_ROLE_ARN || process.env.APIGATEWAY_DYNAMODB_ROLE || process.env.APIGATEWAY_DYNAMODBROLE_ARN || process.env.APIGATEWAY_DYNAMODB_ROLE_ARN;
+const ENV_S3_ROLE_ARN = process.env.APIGATEWAY_S3_ROLE_ARN || process.env.APIGATEWAY_S3_ROLE || process.env.APIGATEWAY_S3ROLE_ARN || process.env.APIGATEWAY_S3_ROLE_ARN;
 
 /**
  * Clients AWS
@@ -49,7 +56,7 @@ async function getAccountId(): Promise<string> {
 /**
  * Créer ou récupérer le rôle IAM
  */
-async function setupIamRole(accountId: string): Promise<string> {
+async function ensureRole(roleName: string, accountId: string, inlinePolicy: any, logFile = './deploy.log'): Promise<string> {
   const trustPolicy = {
     Version: "2012-10-17",
     Statement: [
@@ -63,77 +70,87 @@ async function setupIamRole(accountId: string): Promise<string> {
     ]
   };
 
-  let roleArn: string;
+  // If the role ARN is provided via environment, return it
+  if (roleName === DYNAMODB_ROLE_NAME && ENV_DYNAMODB_ROLE_ARN) {
+    addLog(`ℹ️ Using provided DynamoDB role ARN from env: ${ENV_DYNAMODB_ROLE_ARN}`, logFile);
+    return ENV_DYNAMODB_ROLE_ARN;
+  }
+  if (roleName === S3_ROLE_NAME && ENV_S3_ROLE_ARN) {
+    addLog(`ℹ️ Using provided S3 role ARN from env: ${ENV_S3_ROLE_ARN}`, logFile);
+    return ENV_S3_ROLE_ARN;
+  }
 
+  let roleArn: string;
   try {
-    // Essayer de récupérer le rôle existant
-    const getRoleResult = await iam.send(
-      new GetRoleCommand({ RoleName: IAM_ROLE_NAME })
-    );
+    const getRoleResult = await iam.send(new GetRoleCommand({ RoleName: roleName }));
     roleArn = getRoleResult.Role?.Arn!;
-    console.log("✅ Rôle IAM existant utilisé :", roleArn);
+    addLog(`✅ Rôle IAM existant utilisé : ${roleArn}`, logFile);
   } catch (error: any) {
-    if (error.name === "NoSuchEntityException") {
-      // Créer le rôle s'il n'existe pas
+    if (error.name === 'NoSuchEntityException' || error.name === 'NoSuchEntity') {
       const createRoleResult = await iam.send(
         new CreateRoleCommand({
-          RoleName: IAM_ROLE_NAME,
+          RoleName: roleName,
           AssumeRolePolicyDocument: JSON.stringify(trustPolicy),
-          Description: "Rôle pour API Gateway accédant à DynamoDB et S3"
+          Description: `Rôle ${roleName} pour API Gateway`
         })
       );
       roleArn = createRoleResult.Role?.Arn!;
-      console.log("✅ Rôle IAM créé :", roleArn);
+      addLog(`✅ Rôle IAM créé : ${roleArn}`, logFile);
     } else {
       throw error;
     }
   }
 
-  // Attacher les permissions
-  const inlinePolicy = {
-    Version: "2012-10-17",
-    Statement: [
-      {
-        Effect: "Allow",
-        Action: ["dynamodb:Scan", "dynamodb:GetItem"],
-        Resource: `arn:aws:dynamodb:${REGION}:${accountId}:table/${DYNAMODB_TABLE}`
-      },
-      {
-        Effect: "Allow",
-        Action: ["s3:GetObject"],
-        Resource: `arn:aws:s3:::${S3_BUCKET}/*`
-      }
-    ]
-  };
+  try {
+    await iam.send(
+      new PutRolePolicyCommand({
+        RoleName: roleName,
+        PolicyName: `${roleName}-inline-policy`,
+        PolicyDocument: JSON.stringify(inlinePolicy)
+      })
+    );
+    addLog(`✅ Permissions attachées au rôle ${roleName}`, logFile);
+  } catch (err: any) {
+    // If we cannot attach the policy due to lack of permissions, log clear instructions and continue
+    addLog(`⚠️ Impossible d'attacher la policy au rôle ${roleName}: ${err}.`, logFile);
+    addLog(`👉 Votre session n'a pas la permission iam:PutRolePolicy. Demandez à un administrateur d'attacher la policy suivante au rôle ${roleName} (ou créez le rôle avec ces permissions), puis relancez le déploiement.`, logFile);
+    addLog(`Policy JSON: ${JSON.stringify(inlinePolicy)}`, logFile);
+  }
 
-  await iam.send(
-    new PutRolePolicyCommand({
-      RoleName: IAM_ROLE_NAME,
-      PolicyName: "apigateway-dynamodb-s3-policy",
-      PolicyDocument: JSON.stringify(inlinePolicy)
-    })
-  );
-
-  console.log("✅ Permissions IAM attachées");
-
-  // Attendre que le rôle soit disponible
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
+  await new Promise((resolve) => setTimeout(resolve, 2000));
   return roleArn;
 }
-
-async function main() {
+export async function deployApi(logFile = './deploy.log') {
   try {
-    // ========================================
-    // 0️⃣ Préparer le rôle IAM
-    // ========================================
-    console.log("📋 Configuration IAM...");
+    addLog('📋 Configuration IAM...', logFile);
     const accountId = await getAccountId();
-    const roleArn = await setupIamRole(accountId);
 
-    // ========================================
-    // 1️⃣ Créer l'API Gateway
-    // ========================================
+    // Define inline policies for each role (if we need to create them)
+    const dynamoInlinePolicy = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Action: ['dynamodb:Scan', 'dynamodb:GetItem'],
+          Resource: `arn:aws:dynamodb:${REGION}:${accountId}:table/${DYNAMODB_TABLE}`
+        }
+      ]
+    };
+
+    const s3InlinePolicy = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Action: ['s3:GetObject'],
+          Resource: `arn:aws:s3:::${S3_BUCKET}/*`
+        }
+      ]
+    };
+
+    const dynamoRoleArn = await ensureRole(DYNAMODB_ROLE_NAME, accountId, dynamoInlinePolicy, logFile);
+    const s3RoleArn = await ensureRole(S3_ROLE_NAME, accountId, s3InlinePolicy, logFile);
+
     const apiResult = await apiGateway.send(
       new CreateRestApiCommand({
         name: API_NAME,
@@ -142,9 +159,8 @@ async function main() {
     );
 
     const restApiId = apiResult.id!;
-    console.log("✅ API Gateway REST créée :", restApiId);
+    addLog(`✅ API Gateway REST créée : ${restApiId}`, logFile);
 
-    // Récupérer les ressources
     const resources = await apiGateway.send(
       new GetResourcesCommand({ restApiId })
     );
@@ -155,9 +171,6 @@ async function main() {
       throw new Error("Ressource racine introuvable");
     }
 
-    // ========================================
-    // 2️⃣ Créer la ressource /ships
-    // ========================================
     const shipsResource = await apiGateway.send(
       new CreateResourceCommand({
         restApiId,
@@ -167,9 +180,8 @@ async function main() {
     );
 
     const shipsResourceId = shipsResource.id!;
-    console.log("✅ Ressource /ships créée");
+    addLog('✅ Ressource /ships créée', logFile);
 
-    // Méthode GET /ships (DynamoDB Scan)
     await apiGateway.send(
       new PutMethodCommand({
         restApiId,
@@ -187,7 +199,7 @@ async function main() {
         type: "AWS",
         integrationHttpMethod: "POST",
         uri: `arn:aws:apigateway:${REGION}:dynamodb:action/Scan`,
-        credentials: roleArn,
+        credentials: dynamoRoleArn,
         requestTemplates: {
           "application/json": JSON.stringify({
             TableName: DYNAMODB_TABLE
@@ -217,11 +229,8 @@ async function main() {
       })
     );
 
-    console.log("✅ GET /ships configuré (DynamoDB Scan)");
+    addLog('✅ GET /ships configuré (DynamoDB Scan)', logFile);
 
-    // ========================================
-    // 3️⃣ Créer la ressource /ships/photo/{key}
-    // ========================================
     const photoResource = await apiGateway.send(
       new CreateResourceCommand({
         restApiId,
@@ -241,9 +250,8 @@ async function main() {
     );
 
     const photoKeyResourceId = photoKeyResource.id!;
-    console.log("✅ Ressource /ships/photo/{key} créée");
+    addLog('✅ Ressource /ships/photo/{key} créée', logFile);
 
-    // Méthode GET /ships/photo/{key} (S3)
     await apiGateway.send(
       new PutMethodCommand({
         restApiId,
@@ -264,7 +272,7 @@ async function main() {
         type: "AWS",
         integrationHttpMethod: "GET",
         uri: `arn:aws:apigateway:${REGION}:s3:path/${S3_BUCKET}/{key}`,
-        credentials: roleArn,
+        credentials: s3RoleArn,
         requestParameters: {
           "integration.request.path.key": "method.request.path.key"
         }
@@ -292,11 +300,8 @@ async function main() {
       })
     );
 
-    console.log("✅ GET /ships/photo/{key} configuré (S3)");
+    addLog('✅ GET /ships/photo/{key} configuré (S3)', logFile);
 
-    // ========================================
-    // 4️⃣ Créer la ressource /ships/profile/{key}
-    // ========================================
     const profileResource = await apiGateway.send(
       new CreateResourceCommand({
         restApiId,
@@ -316,9 +321,8 @@ async function main() {
     );
 
     const profileKeyResourceId = profileKeyResource.id!;
-    console.log("✅ Ressource /ships/profile/{key} créée");
+    addLog('✅ Ressource /ships/profile/{key} créée', logFile);
 
-    // Méthode GET /ships/profile/{key} (DynamoDB GetItem)
     await apiGateway.send(
       new PutMethodCommand({
         restApiId,
@@ -339,7 +343,7 @@ async function main() {
         type: "AWS",
         integrationHttpMethod: "POST",
         uri: `arn:aws:apigateway:${REGION}:dynamodb:action/GetItem`,
-        credentials: roleArn,
+        credentials: dynamoRoleArn,
         requestTemplates: {
           "application/json": JSON.stringify({
             TableName: DYNAMODB_TABLE,
@@ -374,11 +378,8 @@ async function main() {
       })
     );
 
-    console.log("✅ GET /ships/profile/{key} configuré (DynamoDB GetItem)");
+    addLog('✅ GET /ships/profile/{key} configuré (DynamoDB GetItem)', logFile);
 
-    // ========================================
-    // 5️⃣ Déploiement
-    // ========================================
     await apiGateway.send(
       new CreateDeploymentCommand({
         restApiId,
@@ -386,25 +387,17 @@ async function main() {
       })
     );
 
-    console.log("\n🚀 API Gateway déployée avec succès !");
-    console.log(`\n📋 Endpoints disponibles :`);
-    console.log(
-      `  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships`
-    );
-    console.log(
-      `  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships/photo/{key}`
-    );
-    console.log(
-      `  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships/profile/{key}`
-    );
-    console.log(`\n📊 Configuration :`);
-    console.log(`  • DynamoDB Table: ${DYNAMODB_TABLE}`);
-    console.log(`  • S3 Bucket: ${S3_BUCKET}`);
-    console.log(`  • Rôle IAM: ${IAM_ROLE_NAME}`);
+    addLog('\n🚀 API Gateway déployée avec succès !', logFile);
+    addLog(`\n📋 Endpoints disponibles :`, logFile);
+    addLog(`  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships`, logFile);
+    addLog(`  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships/photo/{key}`, logFile);
+    addLog(`  • GET https://${restApiId}.execute-api.${REGION}.amazonaws.com/${STAGE_NAME}/ships/profile/{key}`, logFile);
+    addLog(`\n📊 Configuration :`, logFile);
+    addLog(`  • DynamoDB Table: ${DYNAMODB_TABLE}`, logFile);
+    addLog(`  • S3 Bucket: ${S3_BUCKET}`, logFile);
+    addLog(`  • Rôle IAM: ${IAM_ROLE_NAME}`, logFile);
   } catch (error) {
-    console.error("❌ Erreur :", error);
+    addLog(`❌ Erreur : ${error}`, './deploy.log');
     process.exit(1);
   }
 }
-
-main();
