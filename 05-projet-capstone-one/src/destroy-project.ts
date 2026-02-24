@@ -1,5 +1,5 @@
 //import
-import { addLog, initializeLog } from '../log-function';
+import { addLog, initializeLog } from './log-function';
 import {
   S3Client,
   ListBucketsCommand,
@@ -7,7 +7,6 @@ import {
   DeleteObjectCommand,
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
-import { writeFileSync, appendFileSync } from 'fs';
 import { deleteShipsTable } from './dynamodb-operations';
 
 // Configuration du client S3

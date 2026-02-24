@@ -9,7 +9,7 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { readFileSync } from 'fs';
-import { addLog } from '../log-function';
+import { addLog } from './log-function';
 
 
 // Configuration du client S3
