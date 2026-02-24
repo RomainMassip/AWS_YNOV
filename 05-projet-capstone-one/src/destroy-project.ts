@@ -7,6 +7,7 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { writeFileSync, appendFileSync } from 'fs';
+import { deleteShipsTable } from './dynamodb-operations';
 
 // Configuration du client S3
 const s3Client = new S3Client({
@@ -32,7 +33,7 @@ function addLog(message: string): void {
 function initializeLog(): void {
   const timestamp = new Date().toISOString();
   writeFileSync(LOG_FILE, `=== Destruction Log - ${timestamp} ===\n`);
-  console.log(`Fichier de log initialisé: ${LOG_FILE}`);
+  addLog(`Fichier de log initialisé: ${LOG_FILE}`);
 }
 
 /**
@@ -48,7 +49,7 @@ async function emptyBucket(bucketName: string): Promise<void> {
 
     if (listResponse.Contents && listResponse.Contents.length > 0) {
       addLog(`Suppression de ${listResponse.Contents.length} objet(s)...`);
-      
+
       for (const obj of listResponse.Contents) {
         if (obj.Key) {
           const deleteCommand = new DeleteObjectCommand({
@@ -124,6 +125,9 @@ async function main() {
     // Delete all S3 ressources
     await deleteAllProjectBuckets();
 
+    // Delete DynamoDB table
+    await deleteShipsTable();
+
     addLog('\n✅ Project deleted successfully...');
   } catch (error) {
     addLog('❌ Error: ' + error);
@@ -134,4 +138,4 @@ async function main() {
 main();
 
 // Export to make this a module and avoid global scope conflicts
-export {};
+export { };

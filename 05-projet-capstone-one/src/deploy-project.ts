@@ -1,4 +1,4 @@
-//import
+import * as dynamodb from './dynamodb-operations';
 import {
   S3Client,
   CreateBucketCommand,
@@ -70,6 +70,8 @@ async function uploadFile(
 // Main function to execute all operations
 async function deploy() {
   try {
+    console.log('🚀 Starting Project Deployment...');
+
     initializeLog();
     addLog('🚀 Starting Project Deployment...');
     const bucketName = `s3-lab05-sdk-${Date.now()}`;
@@ -81,7 +83,7 @@ async function deploy() {
     // Create S3 and Insert Objects
     await createBucket(bucketName);
     addLog(`✅ Bucket "${bucketName}" created successfully`);
-    
+
     await uploadFile(bucketName, fileName1, localFilePath1);
     addLog(`✅ File "${fileName1}" uploaded successfully to bucket "${bucketName}"`);
 
@@ -89,13 +91,15 @@ async function deploy() {
     addLog(`✅ File "${fileName2}" uploaded successfully to bucket "${bucketName}"`);
 
     // Create DynamoDB and Insert Items
+    await dynamodb.createShipsTable();
+    await dynamodb.insertShips();
 
     // Create API Gateway and Configure S3 / DynamoDB Integration
-
 
     addLog('✅ Project deployed successfully...');
   } catch (error) {
     addLog(`❌ Error: ${error}`);
+    console.error('❌ Error:', error);
   }
 }
 
